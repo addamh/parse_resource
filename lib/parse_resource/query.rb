@@ -17,12 +17,12 @@ class Query
     criteria[:limit] = limit
     self
   end
-  
+
   def include_object(parent)
     criteria[:include] = parent
     self
   end
-  
+
   # deprecating until it works
   def order(attr)
     orders = attr.split(" ")
@@ -33,8 +33,8 @@ class Query
   end
 
   def skip(skip)
-   criteria[:skip] = skip
-   self
+    criteria[:skip] = skip
+    self
   end
 
   def count(count=1)
@@ -85,7 +85,7 @@ class Query
     params.merge!({:order => criteria[:order]}) if criteria[:order]
 
     resp = @klass.resource.get(:params => params)
-    
+
     if criteria[:count] == 1
       results = JSON.parse(resp)['count']
       return results.to_i
