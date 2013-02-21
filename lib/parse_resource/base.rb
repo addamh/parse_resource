@@ -300,30 +300,30 @@ module ParseResource
     end
 
     def update(attributes = {})
+      run_callbacks :update do
+        attributes = HashWithIndifferentAccess.new(attributes)
+        @unsaved_attributes.merge!(attributes)
 
-      attributes = HashWithIndifferentAccess.new(attributes)
+        put_attrs = @unsaved_attributes
+        put_attrs.delete('objectId')
+        put_attrs.delete('createdAt')
+        put_attrs.delete('updatedAt')
+        put_attrs = put_attrs.to_json
 
-      @unsaved_attributes.merge!(attributes)
-
-      put_attrs = @unsaved_attributes
-      put_attrs.delete('objectId')
-      put_attrs.delete('createdAt')
-      put_attrs.delete('updatedAt')
-      put_attrs = put_attrs.to_json
-
-      opts = {:content_type => "application/json"}
-      result = self.instance_resource.put(put_attrs, opts) do |resp, req, res, &block|
-        if resp.code == 200 || resp.code == 201
-          @attributes.merge!(JSON.parse(resp))
-          @attributes.merge!(@unsaved_attributes)
-          @unsaved_attributes = {}
-          create_setters_and_getters!
-          return true
-        else
-          error_response = JSON.parse(resp)
-          pe = ParseError.new(resp.code.to_s, error_response).to_array
-          self.errors.add(pe[0], pe[1])
-          return false
+        opts = {:content_type => "application/json"}
+        self.instance_resource.put(put_attrs, opts) do |resp, req, res, &block|
+          if resp.code == 200 || resp.code == 201
+            @attributes.merge!(JSON.parse(resp))
+            @attributes.merge!(@unsaved_attributes)
+            @unsaved_attributes = {}
+            create_setters_and_getters!
+            return true
+          else
+            error_response = JSON.parse(resp)
+            pe = ParseError.new(resp.code.to_s, error_response).to_array
+            self.errors.add(pe[0], pe[1])
+            return false
+          end
         end
       end
     end
