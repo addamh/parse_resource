@@ -12,7 +12,7 @@ require "parse_resource/parse_exceptions"
 require "parse_resource/types/parse_geopoint"
 
 module ParseResource
-  
+
 
   class Base
     # ParseResource::Base provides an easy way to use Ruby to interace with a Parse.com backend
@@ -29,7 +29,7 @@ module ParseResource
     HashWithIndifferentAccess = ActiveSupport::HashWithIndifferentAccess
 
     define_model_callbacks :save, :create, :update, :destroy
-    
+
     # Instantiates a ParseResource::Base object
     #
     # @params [Hash], [Boolean] a `Hash` of attributes and a `Boolean` that should be false only if the object already exists
@@ -44,7 +44,7 @@ module ParseResource
         @unsaved_attributes = {}
       end
       self.attributes = {}
-            
+
       self.attributes.merge!(attributes)
       self.attributes unless self.attributes.empty?
       create_setters_and_getters!
@@ -65,7 +65,7 @@ module ParseResource
         class_eval do
           define_method("#{fname}=") do |val|
             set_attribute("#{fname}", val)
-            
+
             val
           end
         end
@@ -78,14 +78,14 @@ module ParseResource
     def self.fields(*args)
       args.each {|f| field(f)}
     end
-    
+
     # Similar to its ActiveRecord counterpart.
     #
     # @param [Hash] options Added so that you can specify :class_name => '...'. It does nothing at all, but helps you write self-documenting code.
     def self.belongs_to(parent, options = {})
       field(parent)
     end
-    
+
     def to_pointer
       klass_name = self.class.model_name
       klass_name = "_User" if klass_name == "User"
@@ -102,7 +102,7 @@ module ParseResource
       unless self.respond_to? "#{k}="
         self.class.send(:define_method, "#{k}=") do |val|
           set_attribute("#{k}", val)
-          
+
           val
         end
       end
@@ -205,7 +205,7 @@ module ParseResource
       end
 
       base_uri = "https://api.parse.com/1/files"
-      
+
       #refactor to settings['app_id'] etc
       app_id     = @@settings['app_id']
       master_key = @@settings['master_key']
@@ -237,7 +237,7 @@ module ParseResource
     def self.where(*args)
       Query.new(self).where(*args)
     end
-    
+
 
     include ParseResource::QueryMethods
 
@@ -334,7 +334,7 @@ module ParseResource
       put_attrs.delete('createdAt')
       put_attrs.delete('updatedAt')
       put_attrs = put_attrs.to_json
-      
+
       opts = {:content_type => "application/json"}
       result = self.instance_resource.put(put_attrs, opts) do |resp, req, res, &block|
         if resp.code == 200 || resp.code == 201
@@ -346,7 +346,7 @@ module ParseResource
         else
           error_response = JSON.parse(resp)
           pe = ParseError.new(resp.code.to_s, error_response).to_array
-          self.errors.add(pe[0], pe[1])        
+          self.errors.add(pe[0], pe[1])
           return false
         end
       end
@@ -367,11 +367,11 @@ module ParseResource
 
     def reload
       return false if new?
-      
+
       fresh_object = self.class.find(id)
       @attributes.update(fresh_object.instance_variable_get('@attributes'))
       @unsaved_attributes = {}
-      
+
       self
     end
 
@@ -408,7 +408,7 @@ module ParseResource
         end #todo: support other types https://www.parse.com/docs/rest#objects-types
       else
         result =  attrs["#{k}"]
-      end          
+      end
       result
     end
 
@@ -416,7 +416,7 @@ module ParseResource
       if v.is_a?(Date) || v.is_a?(Time) || v.is_a?(DateTime)
         v = {"__type" => "Date", "iso" => v.iso8601}
       elsif v.respond_to?(:to_pointer)
-        v = v.to_pointer 
+        v = v.to_pointer
       end
       @unsaved_attributes[k.to_s] = v unless v == @attributes[k.to_s] # || @unsaved_attributes[k.to_s]
       @attributes[k.to_s] = v
