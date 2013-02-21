@@ -13,7 +13,6 @@ require "parse_resource/types/parse_geopoint"
 
 module ParseResource
 
-
   class Base
     # ParseResource::Base provides an easy way to use Ruby to interace with a Parse.com backend
     # Usage:
@@ -35,18 +34,17 @@ module ParseResource
     # @params [Hash], [Boolean] a `Hash` of attributes and a `Boolean` that should be false only if the object already exists
     # @return [ParseResource::Base] an object that subclasses `Parseresource::Base`
     def initialize(attributes = {}, new=true)
-      #attributes = HashWithIndifferentAccess.new(attributes)
-
       if new
         @unsaved_attributes = attributes
         @unsaved_attributes.stringify_keys!
       else
         @unsaved_attributes = {}
       end
-      self.attributes = {}
 
+      self.attributes = {}
       self.attributes.merge!(attributes)
       self.attributes unless self.attributes.empty?
+
       create_setters_and_getters!
     end
 
@@ -54,20 +52,14 @@ module ParseResource
     #
     # @param [Symbol] name the name of the field, eg `:author`.
     # @param [Boolean] val the return value of the field. Only use this within the class.
-    def self.field(fname, val=nil)
-      fname = fname.to_sym
+    def self.field(field, setter_return_value=nil)
       class_eval do
-        define_method(fname) do
-          get_attribute("#{fname}")
-        end
+        define_method(field) { get_attribute(field) }
       end
-      unless self.respond_to? "#{fname}="
-        class_eval do
-          define_method("#{fname}=") do |val|
-            set_attribute("#{fname}", val)
 
-            val
-          end
+      unless self.respond_to? "#{field}="
+        class_eval do
+          define_method("#{field}=") { |value| set_attribute(field, value); setter_return_value }
         end
       end
     end
@@ -100,45 +92,35 @@ module ParseResource
     # Creates setter methods for model fields
     def create_setters!(k,v)
       unless self.respond_to? "#{k}="
-        self.class.send(:define_method, "#{k}=") do |val|
-          set_attribute("#{k}", val)
-
-          val
+        class_eval do
+          define_method("#{k}=") { |value| set_attribute(k, value); value }
         end
       end
     end
 
     def self.method_missing(method_name, *args)
-      method_name = method_name.to_s
-      if method_name.start_with?("find_by_")
-        attrib   = method_name.gsub(/^find_by_/,"")
-        finder_name = "find_all_by_#{attrib}"
-
-        define_singleton_method(finder_name) do |target_value|
-          where({attrib.to_sym => target_value}).first
+      if /\Afind_by_(?<attribute_name>\w+)\z/ =~ method_name.to_s
+        finder_name = "find_all_by_#{attribute_name}"
+        define_singleton_method finder_name do |target_value|
+          where(attribute_name.to_sym => target_value).first
         end
-
-        send(finder_name, args[0])
-
-      elsif method_name.start_with?("find_all_by_")
-        attrib   = method_name.gsub(/^find_all_by_/,"")
-        finder_name = "find_all_by_#{attrib}"
-
-        define_singleton_method(finder_name) do |target_value|
-          where({attrib.to_sym => target_value}).all
+        send finder_name, args[0]
+      elsif /\Afind_all_by_(?<attribute_name_all>\w+)\z/ =~ method_name.to_s
+        finder_name = "find_all_by_#{attribute_name_all}"
+        define_singleton_method finder_name do |target_value|
+          where(attribute_name_all.to_sym => target_value).all
         end
-
-        send(finder_name, args[0])
+        send finder_name, args[0]
       else
-        super(method_name.to_sym, *args)
+        super
       end
     end
 
     # Creates getter methods for model fields
     def create_getters!(k,v)
       unless self.respond_to? "#{k}"
-        self.class.send(:define_method, "#{k}") do
-          get_attribute("#{k}")
+        class_eval do
+          define_method(k) { get_attribute(k) }
         end
       end
     end
@@ -238,9 +220,7 @@ module ParseResource
       Query.new(self).where(*args)
     end
 
-
     include ParseResource::QueryMethods
-
 
     # Create a ParseResource::Base object.
     #
@@ -264,11 +244,7 @@ module ParseResource
     end
 
     def persisted?
-      if id
-        true
-      else
-        false
-      end
+      !!id
     end
 
     def new?
