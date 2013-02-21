@@ -39,8 +39,7 @@ class Query
 
   def count(count=1)
     criteria[:count] = count
-    #self
-    all
+    execute
   end
 
   def near(klass, geo_point, options)
