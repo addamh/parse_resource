@@ -233,10 +233,9 @@ module ParseResource
       obj # This won't return true/false it will return object or nil...
     end
 
-    def self.destroy_all
-      all.each do |object|
-        object.destroy
-      end
+    # TODO - Conditions
+    def self.destroy_all(*)
+      all.map(&:destroy)
     end
 
     def self.class_attributes
@@ -244,7 +243,7 @@ module ParseResource
     end
 
     def persisted?
-      !!id
+      id.present?
     end
 
     def new?
@@ -284,19 +283,17 @@ module ParseResource
       end
     end
 
-    def save
+    def save(*)
       if valid?
         run_callbacks :save do
-          if new?
-            return create
-          else
-            return update
-          end
+          result = new? ? create : update
+          result != false
         end
-      else
-        false
       end
-      rescue false
+    end
+
+    def save!(*)
+      save || raise(RecordNotSaved)
     end
 
     def update(attributes = {})
@@ -405,9 +402,7 @@ module ParseResource
     # aliasing for idiomatic Ruby
     def id; get_attribute("objectId") rescue nil; end
     def objectId; get_attribute("objectId") rescue nil; end
-
     def created_at; self.createdAt; end
-
     def updated_at; self.updatedAt rescue nil; end
 
     def self.included(base)
