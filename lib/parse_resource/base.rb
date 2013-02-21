@@ -333,12 +333,14 @@ module ParseResource
     end
 
     def destroy
-      if self.instance_resource.delete
-        @attributes = {}
-        @unsaved_attributes = {}
-        return true
+      run_callbacks :destroy do
+        if self.instance_resource.delete
+          @attributes = {}
+          @unsaved_attributes = {}
+          return true
+        end
+        false
       end
-      false
     end
 
     def reload
