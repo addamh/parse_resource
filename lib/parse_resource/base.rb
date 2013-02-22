@@ -267,13 +267,6 @@ module ParseResource
         args.each {|f| field(f)}
       end
 
-      # Similar to its ActiveRecord counterpart.
-      #
-      # @param [Hash] options Added so that you can specify :class_name => '...'. It does nothing at all, but helps you write self-documenting code.
-      def belongs_to(parent, options = {})
-        field(parent)
-      end
-
       def to_date_object(date)
         {"__type" => "Date", "iso" => date.iso8601} if date && (date.is_a?(Date) || date.is_a?(DateTime) || date.is_a?(Time))
       end
