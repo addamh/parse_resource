@@ -127,8 +127,8 @@ module ParseResource
       end
     end
 
-    def save(*)
-      if valid?
+    def save(options={})
+      if skip_validation?(options) || valid?
         run_callbacks :save do
           result = new? ? create : update
           result != false
@@ -136,8 +136,8 @@ module ParseResource
       end
     end
 
-    def save!(*)
-      save || raise(RecordNotSaved)
+    def save!(options={})
+      save(options) || raise(RecordNotSaved)
     end
 
     def update(new_attributes = {})
@@ -445,6 +445,12 @@ module ParseResource
     def self.class_attributes
       @class_attributes ||= {}
     end
+
+    private
+
+      def skip_validation?(options={})
+        options[:validate] == false
+      end
 
   end
 end
