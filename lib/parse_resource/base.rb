@@ -247,18 +247,17 @@ module ParseResource
     def created_at; self.createdAt; end
     def updated_at; self.updatedAt rescue nil; end
 
-
     # Explicitly adds a field to the model.
     #
     # @param [Symbol] name the name of the field, eg `:author`.
     # @param [Boolean] val the return value of the field. Only use this within the class.
     def self.field(field, setter_return_value=nil)
       class_eval do
-        define_method(field) { get_attribute(field) }
-      end
+        unless respond_to? field
+          define_method(field) { get_attribute(field) }
+        end
 
-      unless respond_to? "#{field}="
-        class_eval do
+        unless respond_to? "#{field}="
           define_method("#{field}=") { |value| set_attribute(field, value); setter_return_value }
         end
       end
@@ -269,6 +268,40 @@ module ParseResource
     # @param [Array] *args an array of `Symbol`s, `eg :author, :body, :title`.
     def self.fields(*args)
       args.each {|f| field(f)}
+    end
+
+    #
+    # Basic support for simple associations.
+    #
+    # class Tree
+    #   has_one :apple
+    # end
+    #
+    # class Apple
+    #   belongs_to :tree
+    # end
+    #
+    # Tree.find(1).apple
+    # Apple.find(1).tree
+    #
+    alias_method :belongs_to, :field
+
+    def self.has_one(association)
+      class_eval do
+        define_method(association) do
+          klass = association.to_s.titlize.constantize
+          klass.send("find_by_#{model_name}".to_sym, self)
+        end
+      end
+    end
+
+    def self.has_many(association)
+      class_eval do
+        define_method(association) do
+          klass = association.to_s.singularize.titlize.constantize
+          klass.send("find_all_by_#{model_name}".to_sym, self)
+        end
+      end
     end
 
     def self.to_date_object(date)
