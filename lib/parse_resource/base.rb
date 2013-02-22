@@ -271,19 +271,20 @@ module ParseResource
         {"__type" => "Date", "iso" => date.iso8601} if date && (date.is_a?(Date) || date.is_a?(DateTime) || date.is_a?(Time))
       end
 
+      def find_all_by(field, value)
+        if value.respond_to? :to_pointer
+          value = value.to_pointer
+        end
+        where(field.to_sym => value)
+      end
+
       def method_missing(method_name, *args)
         if /\Afind_by_(?<attribute_name>\w+)\z/ =~ method_name.to_s
-          finder_name = "find_all_by_#{attribute_name}"
-          define_singleton_method finder_name do |target_value|
-            where(attribute_name.to_sym => target_value).first
-          end
-          send finder_name, args[0]
+          define_singleton_method(method_name) {|v| find_all_by( attribute_name, v).first }
+          send method_name, args.first
         elsif /\Afind_all_by_(?<attribute_name_all>\w+)\z/ =~ method_name.to_s
-          finder_name = "find_all_by_#{attribute_name_all}"
-          define_singleton_method finder_name do |target_value|
-            where(attribute_name_all.to_sym => target_value).all
-          end
-          send finder_name, args[0]
+          define_singleton_method(method_name) {|v| find_all_by(attribute_name_all, v) }
+          send method_name, args.first
         else
           super
         end
