@@ -291,8 +291,8 @@ module ParseResource
     def self.has_one(association)
       class_eval do
         define_method(association) do
-          klass = association.to_s.titlize.constantize
-          klass.where model_name.to_sym => self.to_pointer, :limit => 1
+          klass = association.to_s.titleize.constantize
+          klass.where self.class.model_name.to_sym => self.to_pointer, :limit => 1
         end
       end
     end
@@ -300,8 +300,8 @@ module ParseResource
     def self.has_many(association)
       class_eval do
         define_method(association) do
-          klass = association.to_s.singularize.titlize.constantize
-          klass.where model_name.to_sym => self.to_pointer
+          klass = association.to_s.singularize.titleize.constantize
+          klass.where self.class.model_name.to_sym => self.to_pointer
         end
       end
     end

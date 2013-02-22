@@ -1,7 +1,7 @@
 require 'parse_resource/parse_user_validator'
 
 class ParseUser < ParseResource::Base
-  fields :username, :password
+  fields :username, :password, :email
 
   def self.authenticate(username, password)
     base_uri   = "https://api.parse.com/1/login"
