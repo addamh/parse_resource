@@ -284,13 +284,15 @@ module ParseResource
     # Tree.find(1).apple
     # Apple.find(1).tree
     #
-    alias_method :belongs_to, :field
+    class << self
+      alias_method :belongs_to, :field
+    end
 
     def self.has_one(association)
       class_eval do
         define_method(association) do
           klass = association.to_s.titlize.constantize
-          klass.send("find_by_#{model_name}".to_sym, self)
+          klass.where model_name.to_sym => self.to_pointer, :limit => 1
         end
       end
     end
@@ -299,7 +301,7 @@ module ParseResource
       class_eval do
         define_method(association) do
           klass = association.to_s.singularize.titlize.constantize
-          klass.send("find_all_by_#{model_name}".to_sym, self)
+          klass.where model_name.to_sym => self.to_pointer
         end
       end
     end
