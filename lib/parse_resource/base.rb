@@ -140,12 +140,10 @@ module ParseResource
       save || raise(RecordNotSaved)
     end
 
-    def update(attributes = {})
+    def update(new_attributes = {})
+      self.attributes = new_attributes
       if valid?
         run_callbacks :update do
-          attributes = HashWithIndifferentAccess.new(attributes)
-          @unsaved_attributes.merge!(attributes)
-
           put_attrs = @unsaved_attributes
           put_attrs.delete('objectId')
           put_attrs.delete('createdAt')
@@ -205,15 +203,15 @@ module ParseResource
       @attributes
     end
 
-    def attributes=(attributes)
-      attributes.each do |k, v|
+    def attributes=(new_attributes)
+      new_attributes.each do |k, v|
         if respond_to?("#{k}=")
           send("#{k}=", v)
         else
           raise(UnknownAttributeError, "unknown attribute: #{k}")
         end
       end
-      attributes
+      new_attributes
     end
 
     def get_attribute(k)
