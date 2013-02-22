@@ -418,7 +418,7 @@ module ParseResource
     # @return [ParseResource] an object that subclasses ParseResource.
     def self.find(id)
       raise RecordNotFound if id.blank?
-      where(:objectId => id).first
+      where(:objectId => id).first || raise(RecordNotFound)
     end
 
     # Find a ParseResource::Base object by chaining #where method calls.
