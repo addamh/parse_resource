@@ -193,16 +193,20 @@ module ParseResource
       self
     end
 
-    # provides access to @attributes for getting and setting
     def attributes
       @attributes ||= self.class.class_attributes
       @attributes
     end
 
-    # AKN 2012-06-18: Shouldn't this also be setting @unsaved_attributes?
-    def attributes=(n)
-      @attributes = n
-      @attributes
+    def attributes=(attributes)
+      attributes.each do |k, v|
+        if respond_to?("#{k}=")
+          send("#{k}=", v)
+        else
+          raise(UnknownAttributeError, "unknown attribute: #{k}")
+        end
+      end
+      attributes
     end
 
     def get_attribute(k)
