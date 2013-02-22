@@ -1,26 +1,26 @@
-require "rubygems"
-require "bundler/setup"
-require "active_model"
-require "erb"
-require "rest-client"
-require "json"
-require "active_support/hash_with_indifferent_access"
-require "parse_resource/errors"
-require "parse_resource/query"
-require "parse_resource/query_methods"
-require "parse_resource/parse_error"
-require "parse_resource/parse_exceptions"
-require "parse_resource/types/parse_geopoint"
-
 module ParseResource
-
+  #
+  # ParseResource::Base provides an easy way to use Ruby to interace
+  # with a Parse.com backend
+  #
+  # Example Usage
+  #
+  #   class User < ParseUser
+  #     has_many :comments
+  #   end
+  #
+  #   class Comment < ParseResource::Base
+  #     belongs_to :user
+  #     belongs_to :thread
+  #     fields :body
+  #   end
+  #
+  #   class Thread < ParseResource::Base
+  #     has_many :comments
+  #     fields :title
+  #   end
+  #
   class Base
-    # ParseResource::Base provides an easy way to use Ruby to interace with a Parse.com backend
-    # Usage:
-    #  class Post < ParseResource::Base
-    #    fields :title, :author, :body
-    #  end
-
     include ActiveModel::Validations
     include ActiveModel::Conversion
     include ActiveModel::AttributeMethods
@@ -28,8 +28,6 @@ module ParseResource
 
     extend ActiveModel::Naming
     extend ActiveModel::Callbacks
-
-    HashWithIndifferentAccess = ActiveSupport::HashWithIndifferentAccess
 
     define_model_callbacks :save, :create, :update, :destroy
 
@@ -39,19 +37,10 @@ module ParseResource
     #
     # @params [Hash], [Boolean] a `Hash` of attributes and a `Boolean` that should be false only if the object already exists
     # @return [ParseResource::Base] an object that subclasses `Parseresource::Base`
-    def initialize(attributes = {}, new=true)
-      if new
-        @unsaved_attributes = attributes
-        @unsaved_attributes.stringify_keys!
-      else
-        @unsaved_attributes = {}
-      end
-
-      self.attributes = {}
-      self.attributes.merge!(attributes)
-      self.attributes unless self.attributes.empty?
-
-      create_setters_and_getters!
+    def initialize(new_attributes = {}, new=true)
+      @unsaved_attributes = new ? attributes : {}
+      create_setters_and_getters!(new_attributes)
+      self.attributes = new_attributes
     end
 
     def to_pointer
@@ -79,8 +68,9 @@ module ParseResource
       end
     end
 
-    def create_setters_and_getters!
-      @attributes.each_pair do |k,v|
+    def create_setters_and_getters!(initializer_attributes=nil)
+      data_source = initializer_attributes || @attributes
+      data_source.each_pair do |k,v|
         create_setters!(k,v)
         create_getters!(k,v)
       end
@@ -105,34 +95,9 @@ module ParseResource
       self.class.resource["#{self.id}"]
     end
 
-    def create
-      run_callbacks :create do
-        opts = {:content_type => "application/json"}
-        attrs = @unsaved_attributes.to_json
-        self.resource.post(attrs, opts) do |resp, req, res, &block|
-          if resp.code == 200 || resp.code == 201
-            @attributes.merge!(JSON.parse(resp))
-            @attributes.merge!(@unsaved_attributes)
-            attributes = HashWithIndifferentAccess.new(attributes)
-            @unsaved_attributes = {}
-            create_setters_and_getters!
-            return true
-          else
-            error_response = JSON.parse(resp)
-            pe = ParseError.new(resp.code.to_s, error_response).to_array
-            self.errors.add(pe[0], pe[1])
-            return false
-          end
-        end
-      end
-    end
-
     def save(options={})
-      if skip_validation?(options) || valid?
-        run_callbacks :save do
-          result = new? ? create : update
-          result != false
-        end
+      if perform_save?(options)
+        create_or_update
       end
     end
 
@@ -140,41 +105,9 @@ module ParseResource
       save(options) || raise(RecordNotSaved)
     end
 
-    def update(new_attributes = {})
+    def update_attributes(new_attributes = {})
       self.attributes = new_attributes
-      if valid?
-        run_callbacks :update do
-          put_attrs = @unsaved_attributes
-          put_attrs.delete('objectId')
-          put_attrs.delete('createdAt')
-          put_attrs.delete('updatedAt')
-          put_attrs = put_attrs.to_json
-
-          opts = {:content_type => "application/json"}
-          self.instance_resource.put(put_attrs, opts) do |resp, req, res, &block|
-            if resp.code == 200 || resp.code == 201
-              @attributes.merge!(JSON.parse(resp))
-              @attributes.merge!(@unsaved_attributes)
-              @unsaved_attributes = {}
-              create_setters_and_getters!
-              return true
-            else
-              error_response = JSON.parse(resp)
-              pe = ParseError.new(resp.code.to_s, error_response).to_array
-              self.errors.add(pe[0], pe[1])
-              return false
-            end
-          end
-        end
-      end
-    end
-
-    def update!(attributes={})
-      update(attributes) || raise(RecordNotSaved)
-    end
-
-    def update_attributes(attributes = {})
-      self.update(attributes)
+      save
     end
 
     def destroy
@@ -200,7 +133,7 @@ module ParseResource
 
     def attributes
       @attributes ||= self.class.class_attributes
-      @attributes
+      @attributes.with_indifferent_access
     end
 
     def attributes=(new_attributes)
@@ -215,7 +148,7 @@ module ParseResource
     end
 
     def get_attribute(k)
-      attrs = @unsaved_attributes[k.to_s] ? @unsaved_attributes : @attributes
+      attrs = @unsaved_attributes[k.to_s] ? @unsaved_attributes : attributes
       case attrs[k]
       when Hash
         klass_name = attrs[k]["className"]
@@ -351,7 +284,6 @@ module ParseResource
     def self.settings
       if @@settings.nil?
         path = "config/parse_resource.yml"
-        #environment = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env : ENV["RACK_ENV"]
         environment = ENV["RACK_ENV"]
         @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
       end
@@ -431,10 +363,9 @@ module ParseResource
     # @param [Hash] attributes a `Hash` of attributes
     # @return [ParseResource] an object that subclasses `ParseResource`. Or returns `false` if object fails to save.
     def self.create(attributes = {})
-      attributes = HashWithIndifferentAccess.new(attributes)
       obj = new(attributes)
       obj.save
-      obj # This won't return true/false it will return object or nil...
+      obj
     end
 
     # TODO - Conditions
@@ -448,9 +379,60 @@ module ParseResource
 
     private
 
-      def skip_validation?(options={})
-        options[:validate] == false
+      def perform_save?(options={})
+        options[:validate] == false || valid?
       end
 
+      def create_or_update
+        result = run_callbacks(:save) { new? ? create : update }
+        result != false
+      end
+
+      def update
+        run_callbacks(:update) do
+          put_attrs = @unsaved_attributes
+          put_attrs.delete('objectId')
+          put_attrs.delete('createdAt')
+          put_attrs.delete('updatedAt')
+          put_attrs = put_attrs.to_json
+
+          opts = {:content_type => "application/json"}
+          self.instance_resource.put(put_attrs, opts) do |resp, req, res, &block|
+            if resp.code == 200 || resp.code == 201
+              @attributes.merge!(JSON.parse(resp))
+              @attributes.merge!(@unsaved_attributes)
+              @unsaved_attributes = {}
+              create_setters_and_getters!
+              return true
+            else
+              error_response = JSON.parse(resp)
+              pe = ParseError.new(resp.code.to_s, error_response).to_array
+              self.errors.add(pe[0], pe[1])
+              return false
+            end
+          end
+        end
+      end
+
+      def create
+        run_callbacks(:create) do
+          opts = {:content_type => "application/json"}
+          attrs = @unsaved_attributes.to_json
+          self.resource.post(attrs, opts) do |resp, req, res, &block|
+            if resp.code == 200 || resp.code == 201
+              @attributes.merge!(JSON.parse(resp))
+              @attributes.merge!(@unsaved_attributes)
+              @unsaved_attributes = {}
+              create_setters_and_getters!
+              return true
+            else
+              error_response = JSON.parse(resp)
+              pe = ParseError.new(resp.code.to_s, error_response).to_array
+              self.errors.add(pe[0], pe[1])
+              return false
+            end
+          end
+        end
+      end
   end
 end
