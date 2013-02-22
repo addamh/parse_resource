@@ -31,10 +31,14 @@ module ParseResource
 
     define_model_callbacks :save, :create, :update, :destroy
 
+    #
     # Instantiates a ParseResource::Base object
     #
-    # @params [Hash], [Boolean] a `Hash` of attributes and a `Boolean` that should be false only if the object already exists
-    # @return [ParseResource::Base] an object that subclasses `Parseresource::Base`
+    # @params [Hash], [Boolean] a `Hash` of attributes and a `Boolean`
+    #         that should be false only if the object already exists
+    # @return [ParseResource::Base] an object that subclasses
+    #         `Parseresource::Base`
+    #
     def initialize(new_attributes = {}, new=true)
       @unsaved_attributes = new ? attributes : {}
       create_setters_and_getters!(new_attributes)
@@ -358,8 +362,10 @@ module ParseResource
       end
 
       def create_or_update
-        result = run_callbacks(:save) { new? ? create : update }
-        result != false
+        run_callbacks(:save) do
+          result = new? ? create : update
+          result != false
+        end
       end
 
       def update
