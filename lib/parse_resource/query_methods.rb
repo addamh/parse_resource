@@ -1,9 +1,6 @@
-#require 'parse_resource'
-require 'parse_resource/query'
-
 module ParseResource
-
   module QueryMethods
+    extend ActiveSupport::Concern
 
     module ClassMethods
       # Include the attributes of a parent ojbect in the results
@@ -57,8 +54,5 @@ module ParseResource
       end
     end
 
-    def self.included(base)
-      base.extend(ClassMethods)
-    end
   end
 end
