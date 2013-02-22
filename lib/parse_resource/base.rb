@@ -23,11 +23,17 @@ module ParseResource
     include ActiveModel::Validations
     include ActiveModel::Conversion
     include ActiveModel::AttributeMethods
+    include ParseResource::QueryMethods
+
     extend ActiveModel::Naming
     extend ActiveModel::Callbacks
+    extend ActiveSupport::Concern
+
     HashWithIndifferentAccess = ActiveSupport::HashWithIndifferentAccess
 
     define_model_callbacks :save, :create, :update, :destroy
+
+    @@settings ||= nil
 
     # Instantiates a ParseResource::Base object
     #
@@ -48,45 +54,11 @@ module ParseResource
       create_setters_and_getters!
     end
 
-    # Explicitly adds a field to the model.
-    #
-    # @param [Symbol] name the name of the field, eg `:author`.
-    # @param [Boolean] val the return value of the field. Only use this within the class.
-    def self.field(field, setter_return_value=nil)
-      class_eval do
-        define_method(field) { get_attribute(field) }
-      end
-
-      unless self.respond_to? "#{field}="
-        class_eval do
-          define_method("#{field}=") { |value| set_attribute(field, value); setter_return_value }
-        end
-      end
-    end
-
-    # Add multiple fields in one line. Same as `#field`, but accepts multiple args.
-    #
-    # @param [Array] *args an array of `Symbol`s, `eg :author, :body, :title`.
-    def self.fields(*args)
-      args.each {|f| field(f)}
-    end
-
-    # Similar to its ActiveRecord counterpart.
-    #
-    # @param [Hash] options Added so that you can specify :class_name => '...'. It does nothing at all, but helps you write self-documenting code.
-    def self.belongs_to(parent, options = {})
-      field(parent)
-    end
-
     def to_pointer
       klass_name = self.class.model_name
       klass_name = "_User" if klass_name == "User"
       klass_name = "_Installation" if klass_name == "Installation"
       {"__type" => "Pointer", "className" => klass_name, "objectId" => self.id}
-    end
-
-    def self.to_date_object(date)
-      {"__type" => "Date", "iso" => date.iso8601} if date && (date.is_a?(Date) || date.is_a?(DateTime) || date.is_a?(Time))
     end
 
     # Creates setter methods for model fields
@@ -95,24 +67,6 @@ module ParseResource
         class_eval do
           define_method("#{k}=") { |value| set_attribute(k, value); value }
         end
-      end
-    end
-
-    def self.method_missing(method_name, *args)
-      if /\Afind_by_(?<attribute_name>\w+)\z/ =~ method_name.to_s
-        finder_name = "find_all_by_#{attribute_name}"
-        define_singleton_method finder_name do |target_value|
-          where(attribute_name.to_sym => target_value).first
-        end
-        send finder_name, args[0]
-      elsif /\Afind_all_by_(?<attribute_name_all>\w+)\z/ =~ method_name.to_s
-        finder_name = "find_all_by_#{attribute_name_all}"
-        define_singleton_method finder_name do |target_value|
-          where(attribute_name_all.to_sym => target_value).all
-        end
-        send finder_name, args[0]
-      else
-        super
       end
     end
 
@@ -130,116 +84,6 @@ module ParseResource
         create_setters!(k,v)
         create_getters!(k,v)
       end
-    end
-
-    @@settings ||= nil
-
-    # Explicitly set Parse.com API keys.
-    #
-    # @param [String] app_id the Application ID of your Parse database
-    # @param [String] master_key the Master Key of your Parse database
-    def self.load!(app_id, master_key)
-      @@settings = {"app_id" => app_id, "master_key" => master_key}
-    end
-
-    def self.settings
-      if @@settings.nil?
-        path = "config/parse_resource.yml"
-        #environment = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env : ENV["RACK_ENV"]
-        environment = ENV["RACK_ENV"]
-        @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
-      end
-      @@settings
-    end
-
-    # Creates a RESTful resource
-    # sends requests to [base_uri]/[classname]
-    #
-    def self.resource
-      if @@settings.nil?
-        path = "config/parse_resource.yml"
-        environment = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env : ENV["RACK_ENV"]
-        @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
-      end
-
-      if model_name == "User" #https://parse.com/docs/rest#users-signup
-        base_uri = "https://api.parse.com/1/users"
-      elsif model_name == "Installation" #https://parse.com/docs/rest#installations
-        base_uri = "https://api.parse.com/1/installations"
-      else
-        base_uri = "https://api.parse.com/1/classes/#{model_name}"
-      end
-
-      #refactor to settings['app_id'] etc
-      app_id     = @@settings['app_id']
-      master_key = @@settings['master_key']
-      RestClient::Resource.new(base_uri, app_id, master_key)
-    end
-
-    # Creates a RESTful resource for file uploads
-    # sends requests to [base_uri]/files
-    #
-    def self.upload(file_instance, filename, options={})
-      if @@settings.nil?
-        path = "config/parse_resource.yml"
-        environment = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env : ENV["RACK_ENV"]
-        @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
-      end
-
-      base_uri = "https://api.parse.com/1/files"
-
-      #refactor to settings['app_id'] etc
-      app_id     = @@settings['app_id']
-      master_key = @@settings['master_key']
-
-      options[:content_type] ||= 'image/jpg' # TODO: Guess mime type here.
-      file_instance = File.new(file_instance, 'rb') if file_instance.is_a? String
-
-      filename = filename.parameterize
-
-      private_resource = RestClient::Resource.new "#{base_uri}/#{filename}", app_id, master_key
-      private_resource.post(file_instance, options) do |resp, req, res, &block|
-        return false if resp.code == 400
-        return JSON.parse(resp) rescue {"code" => 0, "error" => "unknown error"}
-      end
-      false
-    end
-
-    # Find a ParseResource::Base object by ID
-    #
-    # @param [String] id the ID of the Parse object you want to find.
-    # @return [ParseResource] an object that subclasses ParseResource.
-    def self.find(id)
-			raise RecordNotFound if id.blank?
-      where(:objectId => id).first
-    end
-
-    # Find a ParseResource::Base object by chaining #where method calls.
-    #
-    def self.where(*args)
-      Query.new(self).where(*args)
-    end
-
-    include ParseResource::QueryMethods
-
-    # Create a ParseResource::Base object.
-    #
-    # @param [Hash] attributes a `Hash` of attributes
-    # @return [ParseResource] an object that subclasses `ParseResource`. Or returns `false` if object fails to save.
-    def self.create(attributes = {})
-      attributes = HashWithIndifferentAccess.new(attributes)
-      obj = new(attributes)
-      obj.save
-      obj # This won't return true/false it will return object or nil...
-    end
-
-    # TODO - Conditions
-    def self.destroy_all(*)
-      all.map(&:destroy)
-    end
-
-    def self.class_attributes
-      @class_attributes ||= {}
     end
 
     def persisted?
@@ -398,19 +242,173 @@ module ParseResource
       v
     end
 
+    module ClassMethods
+
+      # Explicitly adds a field to the model.
+      #
+      # @param [Symbol] name the name of the field, eg `:author`.
+      # @param [Boolean] val the return value of the field. Only use this within the class.
+      def field(field, setter_return_value=nil)
+        class_eval do
+          define_method(field) { get_attribute(field) }
+        end
+
+        unless respond_to? "#{field}="
+          class_eval do
+            define_method("#{field}=") { |value| set_attribute(field, value); setter_return_value }
+          end
+        end
+      end
+
+      # Add multiple fields in one line. Same as `#field`, but accepts multiple args.
+      #
+      # @param [Array] *args an array of `Symbol`s, `eg :author, :body, :title`.
+      def fields(*args)
+        args.each {|f| field(f)}
+      end
+
+      # Similar to its ActiveRecord counterpart.
+      #
+      # @param [Hash] options Added so that you can specify :class_name => '...'. It does nothing at all, but helps you write self-documenting code.
+      def belongs_to(parent, options = {})
+        field(parent)
+      end
+
+      def to_date_object(date)
+        {"__type" => "Date", "iso" => date.iso8601} if date && (date.is_a?(Date) || date.is_a?(DateTime) || date.is_a?(Time))
+      end
+
+      def method_missing(method_name, *args)
+        if /\Afind_by_(?<attribute_name>\w+)\z/ =~ method_name.to_s
+          finder_name = "find_all_by_#{attribute_name}"
+          define_singleton_method finder_name do |target_value|
+            where(attribute_name.to_sym => target_value).first
+          end
+          send finder_name, args[0]
+        elsif /\Afind_all_by_(?<attribute_name_all>\w+)\z/ =~ method_name.to_s
+          finder_name = "find_all_by_#{attribute_name_all}"
+          define_singleton_method finder_name do |target_value|
+            where(attribute_name_all.to_sym => target_value).all
+          end
+          send finder_name, args[0]
+        else
+          super
+        end
+      end
+
+      # Explicitly set Parse.com API keys.
+      #
+      # @param [String] app_id the Application ID of your Parse database
+      # @param [String] master_key the Master Key of your Parse database
+      def load!(app_id, master_key)
+        @@settings = {"app_id" => app_id, "master_key" => master_key}
+      end
+
+      def settings
+        if @@settings.nil?
+          path = "config/parse_resource.yml"
+          #environment = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env : ENV["RACK_ENV"]
+          environment = ENV["RACK_ENV"]
+          @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
+        end
+        @@settings
+      end
+
+      # Creates a RESTful resource
+      # sends requests to [base_uri]/[classname]
+      #
+      def resource
+        if @@settings.nil?
+          path = "config/parse_resource.yml"
+          environment = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env : ENV["RACK_ENV"]
+          @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
+        end
+
+        if model_name == "User" #https://parse.com/docs/rest#users-signup
+          base_uri = "https://api.parse.com/1/users"
+        elsif model_name == "Installation" #https://parse.com/docs/rest#installations
+          base_uri = "https://api.parse.com/1/installations"
+        else
+          base_uri = "https://api.parse.com/1/classes/#{model_name}"
+        end
+
+        #refactor to settings['app_id'] etc
+        app_id     = @@settings['app_id']
+        master_key = @@settings['master_key']
+        RestClient::Resource.new(base_uri, app_id, master_key)
+      end
+
+      # Creates a RESTful resource for file uploads
+      # sends requests to [base_uri]/files
+      #
+      def upload(file_instance, filename, options={})
+        if @@settings.nil?
+          path = "config/parse_resource.yml"
+          environment = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env : ENV["RACK_ENV"]
+          @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
+        end
+
+        base_uri = "https://api.parse.com/1/files"
+
+        #refactor to settings['app_id'] etc
+        app_id     = @@settings['app_id']
+        master_key = @@settings['master_key']
+
+        options[:content_type] ||= 'image/jpg' # TODO: Guess mime type here.
+        file_instance = File.new(file_instance, 'rb') if file_instance.is_a? String
+
+        filename = filename.parameterize
+
+        private_resource = RestClient::Resource.new "#{base_uri}/#{filename}", app_id, master_key
+        private_resource.post(file_instance, options) do |resp, req, res, &block|
+          return false if resp.code == 400
+          return JSON.parse(resp) rescue {"code" => 0, "error" => "unknown error"}
+        end
+        false
+      end
+
+      # Find a ParseResource::Base object by ID
+      #
+      # @param [String] id the ID of the Parse object you want to find.
+      # @return [ParseResource] an object that subclasses ParseResource.
+      def find(id)
+        raise RecordNotFound if id.blank?
+        where(:objectId => id).first
+      end
+
+      # Find a ParseResource::Base object by chaining #where method calls.
+      #
+      def where(*args)
+        Query.new(self).where(*args)
+      end
+
+      # Create a ParseResource::Base object.
+      #
+      # @param [Hash] attributes a `Hash` of attributes
+      # @return [ParseResource] an object that subclasses `ParseResource`. Or returns `false` if object fails to save.
+      def create(attributes = {})
+        attributes = HashWithIndifferentAccess.new(attributes)
+        obj = new(attributes)
+        obj.save
+        obj # This won't return true/false it will return object or nil...
+      end
+
+      # TODO - Conditions
+      def destroy_all(*)
+        all.map(&:destroy)
+      end
+
+      def class_attributes
+        @class_attributes ||= {}
+      end
+
+    end
 
     # aliasing for idiomatic Ruby
     def id; get_attribute("objectId") rescue nil; end
     def objectId; get_attribute("objectId") rescue nil; end
     def created_at; self.createdAt; end
     def updated_at; self.updatedAt rescue nil; end
-
-    def self.included(base)
-      base.extend(ClassMethods)
-    end
-
-    module ClassMethods
-    end
 
   end
 end
