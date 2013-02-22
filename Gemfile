@@ -19,6 +19,7 @@ end
 
 gem "rest-client"
 gem "activesupport"
+gem "settingslogic"
 gem "activemodel"
 gem "json"
 

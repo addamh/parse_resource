@@ -31,8 +31,6 @@ module ParseResource
 
     define_model_callbacks :save, :create, :update, :destroy
 
-    @@settings ||= nil
-
     # Instantiates a ParseResource::Base object
     #
     # @params [Hash], [Boolean] a `Hash` of attributes and a `Boolean` that should be false only if the object already exists
@@ -278,57 +276,33 @@ module ParseResource
     # @param [String] app_id the Application ID of your Parse database
     # @param [String] master_key the Master Key of your Parse database
     def self.load!(app_id, master_key)
-      @@settings = {"app_id" => app_id, "master_key" => master_key}
+      ParseSettings.app_id = app_id
+      ParseSettings.master_key = master_key
     end
 
-    def self.settings
-      if @@settings.nil?
-        path = "config/parse_resource.yml"
-        environment = ENV["RACK_ENV"]
-        @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
-      end
-      @@settings
-    end
-
-    # Creates a RESTful resource
-    # sends requests to [base_uri]/[classname]
-    #
+    # Send requests to [base_uri]/[classname]
     def self.resource
-      if @@settings.nil?
-        path = "config/parse_resource.yml"
-        environment = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env : ENV["RACK_ENV"]
-        @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
-      end
-
-      if model_name == "User" #https://parse.com/docs/rest#users-signup
+      case model_name
+      when "User"
+        # https://parse.com/docs/rest#users-signup
         base_uri = "https://api.parse.com/1/users"
-      elsif model_name == "Installation" #https://parse.com/docs/rest#installations
+      when "Installation"
+        # https://parse.com/docs/rest#installations
         base_uri = "https://api.parse.com/1/installations"
       else
         base_uri = "https://api.parse.com/1/classes/#{model_name}"
       end
-
-      #refactor to settings['app_id'] etc
-      app_id     = @@settings['app_id']
-      master_key = @@settings['master_key']
-      RestClient::Resource.new(base_uri, app_id, master_key)
+      RestClient::Resource.new(base_uri, ParseSettings.app_id, ParseSettings.master_key)
     end
 
     # Creates a RESTful resource for file uploads
     # sends requests to [base_uri]/files
     #
     def self.upload(file_instance, filename, options={})
-      if @@settings.nil?
-        path = "config/parse_resource.yml"
-        environment = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env : ENV["RACK_ENV"]
-        @@settings = YAML.load(ERB.new(File.new(path).read).result)[environment]
-      end
-
       base_uri = "https://api.parse.com/1/files"
 
-      #refactor to settings['app_id'] etc
-      app_id     = @@settings['app_id']
-      master_key = @@settings['master_key']
+      app_id     = ParseSettings.app_id
+      master_key = ParseSettings.master_key
 
       options[:content_type] ||= 'image/jpg' # TODO: Guess mime type here.
       file_instance = File.new(file_instance, 'rb') if file_instance.is_a? String
