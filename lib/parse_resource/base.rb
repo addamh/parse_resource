@@ -31,8 +31,6 @@ module ParseResource
 
     define_model_callbacks :save, :create, :update, :destroy
 
-    fields :objectId, :createdAt, :updatedAt
-
     #
     # Instantiates a ParseResource::Base object
     #
@@ -154,6 +152,9 @@ module ParseResource
     def self.fields(*args)
       args.each {|f| field(f)}
     end
+
+    # Configure built-ins
+    fields :objectId, :createdAt, :updatedAt
 
     #
     # Basic support for simple associations.
