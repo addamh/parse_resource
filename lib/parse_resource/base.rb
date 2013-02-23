@@ -31,6 +31,8 @@ module ParseResource
 
     define_model_callbacks :save, :create, :update, :destroy
 
+    fields :objectId, :createdAt, :updatedAt
+
     #
     # Instantiates a ParseResource::Base object
     #
@@ -39,43 +41,18 @@ module ParseResource
     # @return [ParseResource::Base] an object that subclasses
     #         `Parseresource::Base`
     #
-    def initialize(new_attributes = {}, new=true)
-      @unsaved_attributes = new ? attributes : {}
-      create_setters_and_getters!(new_attributes)
-      self.attributes = new_attributes
+    def initialize(new_attributes={}, new=true)
+      self.class.fields(*new_attributes.keys)
+
+      attributes = new_attributes
+      attributes.mark_as_clean! unless new
     end
 
     def to_pointer
       klass_name = self.class.model_name
       klass_name = "_User" if klass_name == "User"
       klass_name = "_Installation" if klass_name == "Installation"
-      {"__type" => "Pointer", "className" => klass_name, "objectId" => self.id}
-    end
-
-    # Creates setter methods for model fields
-    def create_setters!(k,v)
-      unless self.respond_to? "#{k}="
-        class_eval do
-          define_method("#{k}=") { |value| set_attribute(k, value); value }
-        end
-      end
-    end
-
-    # Creates getter methods for model fields
-    def create_getters!(k,v)
-      unless self.respond_to? "#{k}"
-        class_eval do
-          define_method(k) { get_attribute(k) }
-        end
-      end
-    end
-
-    def create_setters_and_getters!(initializer_attributes=nil)
-      data_source = initializer_attributes || @attributes
-      data_source.each_pair do |k,v|
-        create_setters!(k,v)
-        create_getters!(k,v)
-      end
+      {"__type" => "Pointer", "className" => klass_name, "objectId" => id}
     end
 
     def persisted?
@@ -94,7 +71,7 @@ module ParseResource
     # create RESTful resource for the specific Parse object
     # sends requests to [base_uri]/[classname]/[objectId]
     def instance_resource
-      self.class.resource["#{self.id}"]
+      self.class.resource[id]
     end
 
     def save(options={})
@@ -112,11 +89,14 @@ module ParseResource
       save
     end
 
+    def update_attributes!(new_attributes = {})
+      update_attributes(new_attributes) || raise(RecordNotSaved)
+    end
+
     def destroy
       run_callbacks :destroy do
         if self.instance_resource.delete
-          @attributes = {}
-          @unsaved_attributes = {}
+          @data_provider = nil
           return true
         end
         false
@@ -126,83 +106,44 @@ module ParseResource
     def reload
       return false if new?
 
+      @data_provider = nil
       fresh_object = self.class.find(id)
-      @attributes.update(fresh_object.instance_variable_get('@attributes'))
-      @unsaved_attributes = {}
-
+      attributes = fresh_object.attributes
+      attributes.mark_as_clean!
       self
     end
 
-    def attributes
-      @attributes ||= self.class.class_attributes
-      @attributes.with_indifferent_access
-    end
-
-    def attributes=(new_attributes)
-      new_attributes.each do |k, v|
-        if respond_to?("#{k}=")
-          send("#{k}=", v)
+    def attributes=(attributes)
+      attributes.each do |k, v|
+        if respond_to? "#{k}="
+          send "#{k}=", v
         else
           raise(UnknownAttributeError, "unknown attribute: #{k}")
         end
       end
-      new_attributes
+      attributes
     end
 
-    def get_attribute(k)
-      attrs = @unsaved_attributes[k.to_s] ? @unsaved_attributes : attributes
-      case attrs[k]
-      when Hash
-        klass_name = attrs[k]["className"]
-        klass_name = "User" if klass_name == "_User"
-        klass_name = "Installation" if klass_name == "_Installation"
-        case attrs[k]["__type"]
-        when "Pointer"
-          result = klass_name.constantize.find(attrs[k]["objectId"])
-        when "Object"
-          result = klass_name.constantize.new(attrs[k], false)
-        when "Date"
-          result = DateTime.parse(attrs[k]["iso"])
-        when "File"
-          result = attrs[k]["url"]
-        when "GeoPoint"
-          result = ParseGeoPoint.new(attrs[k])
-        end #todo: support other types https://www.parse.com/docs/rest#objects-types
-      else
-        result =  attrs["#{k}"]
-      end
-      result
+    def id
+      objectId rescue nil
     end
-
-    def set_attribute(k, v)
-      if v.is_a?(Date) || v.is_a?(Time) || v.is_a?(DateTime)
-        v = {"__type" => "Date", "iso" => v.iso8601}
-      elsif v.respond_to?(:to_pointer)
-        v = v.to_pointer
-      end
-      @unsaved_attributes[k.to_s] = v unless v == @attributes[k.to_s] # || @unsaved_attributes[k.to_s]
-      @attributes[k.to_s] = v
-      v
-    end
-
-    # aliasing for idiomatic Ruby
-    def id; get_attribute("objectId") rescue nil; end
-    def objectId; get_attribute("objectId") rescue nil; end
-    def created_at; self.createdAt; end
-    def updated_at; self.updatedAt rescue nil; end
 
     # Explicitly adds a field to the model.
     #
     # @param [Symbol] name the name of the field, eg `:author`.
-    # @param [Boolean] val the return value of the field. Only use this within the class.
-    def self.field(field, setter_return_value=nil)
+    def self.field(field)
       class_eval do
         unless respond_to? field
-          define_method(field) { get_attribute(field) }
+          define_method(field) do
+            attributes[key]
+          end
         end
 
         unless respond_to? "#{field}="
-          define_method("#{field}=") { |value| set_attribute(field, value); setter_return_value }
+          define_method("#{field}=") do |value|
+            attributes[key] = value
+            value
+          end
         end
       end
     end
@@ -351,11 +292,11 @@ module ParseResource
       all.map(&:destroy)
     end
 
-    def self.class_attributes
-      @class_attributes ||= {}
-    end
-
     private
+
+      def attributes
+        @data_provider ||= DataProvider.new
+      end
 
       def perform_save?(options={})
         options[:validate] == false || valid?
@@ -370,7 +311,7 @@ module ParseResource
 
       def update
         run_callbacks(:update) do
-          put_attrs = @unsaved_attributes
+          put_attrs = attributes.unsaved
           put_attrs.delete('objectId')
           put_attrs.delete('createdAt')
           put_attrs.delete('updatedAt')
@@ -379,10 +320,10 @@ module ParseResource
           opts = {:content_type => "application/json"}
           self.instance_resource.put(put_attrs, opts) do |resp, req, res, &block|
             if resp.code == 200 || resp.code == 201
-              @attributes.merge!(JSON.parse(resp))
-              @attributes.merge!(@unsaved_attributes)
-              @unsaved_attributes = {}
-              create_setters_and_getters!
+              new_attributes = JSON.parse(resp)
+              self.class.fields(*new_attributes.keys)
+              attributes = new_attributes
+              attributes.mark_as_clean!
               return true
             else
               error_response = JSON.parse(resp)
@@ -397,13 +338,13 @@ module ParseResource
       def create
         run_callbacks(:create) do
           opts = {:content_type => "application/json"}
-          attrs = @unsaved_attributes.to_json
+          attrs = attributes.unsaved.to_json
           self.resource.post(attrs, opts) do |resp, req, res, &block|
             if resp.code == 200 || resp.code == 201
-              @attributes.merge!(JSON.parse(resp))
-              @attributes.merge!(@unsaved_attributes)
-              @unsaved_attributes = {}
-              create_setters_and_getters!
+              new_attributes = JSON.parse(resp)
+              self.class.fields(*new_atttributes.keys)
+              attributes = new_attributes
+              attributes.mark_as_clean!
               return true
             else
               error_response = JSON.parse(resp)
@@ -415,4 +356,65 @@ module ParseResource
         end
       end
   end
+
+  #
+  # Data provider to manage model attributes
+  #
+  class DataProvider < ActiveSupport::HashWithIndifferentAccess
+
+    attr_reader :unsaved
+
+    def initialize(*args)
+      mark_as_clean!
+      super
+    end
+
+    def []=(key, value)
+      value = transform_for_write(value)
+      @unsaved[key] = value
+      super
+    end
+
+    def [](key)
+      transform_for_return super(key)
+    end
+
+    def mark_as_clean!
+      @unsaved = {}.with_indifferent_access
+    end
+
+    private
+
+      def transform_for_write(value)
+        if value.is_a?(Date) || value.is_a?(Time) || value.is_a?(DateTime)
+          value = {"__type" => "Date", "iso" => value.iso8601}
+        elsif attribute.respond_to?(:to_pointer)
+          value = value.to_pointer
+        end
+        value
+      end
+
+      def transform_for_return(attribute)
+        case attribute
+        when Hash
+          klass_name = attribute["className"]
+          klass_name = "User" if klass_name == "_User"
+          klass_name = "Installation" if klass_name == "_Installation"
+          case attribute["__type"]
+          when "Pointer"
+            result = klass_name.constantize.find(attribute["objectId"])
+          when "Object"
+            result = klass_name.constantize.new(attribute, false)
+          when "Date"
+            result = DateTime.parse(attribute["iso"])
+          when "GeoPoint"
+            result = ParseGeoPoint.new(attribute)
+          end #todo: support other types https://www.parse.com/docs/rest#objects-types
+        else
+          result = attribute
+        end
+        result
+      end
+  end
+
 end
