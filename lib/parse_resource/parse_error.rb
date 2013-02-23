@@ -3,7 +3,7 @@ class ParseError
   # HTTP response is 400, one can inspect the first element of the error
   # converted to_array for the HTTP error code and the 2nd element for the
   # parse error response.
-  
+
   # @param [String] an error code, e.g. "400"
   # @param [Object] an optional error mesg/object.
   def initialize(code, msg="")
@@ -34,9 +34,9 @@ class ParseError
       raise "Parse msg #{code}: #{@error}"
     end
   end
-  
+
   def to_array
     return [@code, @msg]
   end
-  
+
 end
