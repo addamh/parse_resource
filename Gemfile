@@ -8,7 +8,7 @@ source "http://rubygems.org"
 group :development do
   gem "bundler"
   gem "jeweler"
-  gem "rcov"
+  gem "simplecov"
   gem "reek"
   gem "rest-client"
   gem "activesupport"
