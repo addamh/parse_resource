@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Alan deLevie"]
-  s.date = "2012-09-20"
+  s.date = "2013-02-26"
   s.description = ""
   s.email = "adelevie@gmail.com"
   s.extra_rdoc_files = [
@@ -50,13 +50,19 @@ Gem::Specification.new do |s|
     "fixtures/vcr_cassettes/test_username_should_be_unique.yml",
     "fixtures/vcr_cassettes/test_where.yml",
     "lib/.DS_Store",
+    "lib/kaminari_extension.rb",
     "lib/parse_resource.rb",
     "lib/parse_resource/base.rb",
+    "lib/parse_resource/client.rb",
+    "lib/parse_resource/errors.rb",
     "lib/parse_resource/parse_error.rb",
     "lib/parse_resource/parse_exceptions.rb",
+    "lib/parse_resource/parse_settings.rb",
     "lib/parse_resource/parse_user.rb",
     "lib/parse_resource/parse_user_validator.rb",
     "lib/parse_resource/query.rb",
+    "lib/parse_resource/query_methods.rb",
+    "lib/parse_resource/types/parse_geopoint.rb",
     "parse_resource.gemspec",
     "parse_resource.yml",
     "rdoc/ParseResource.html",
@@ -66,15 +72,17 @@ Gem::Specification.new do |s|
     "rdoc/rdoc.css",
     "test/active_model_lint_test.rb",
     "test/helper.rb",
+    "test/test_parse_installation.rb",
     "test/test_parse_resource.rb",
     "test/test_parse_user.rb",
     "test/test_query.rb",
-    "test/test_query_options.rb"
+    "test/test_query_options.rb",
+    "test/test_types.rb"
   ]
   s.homepage = "http://github.com/adelevie/parse_resource"
   s.licenses = ["MIT"]
   s.require_paths = ["lib"]
-  s.rubygems_version = "1.8.24"
+  s.rubygems_version = "1.8.23"
   s.summary = "An ActiveResource-like wrapper for the Parse REST api."
 
   if s.respond_to? :specification_version then
@@ -83,12 +91,13 @@ Gem::Specification.new do |s|
     if Gem::Version.new(Gem::VERSION) >= Gem::Version.new('1.2.0') then
       s.add_runtime_dependency(%q<rest-client>, [">= 0"])
       s.add_runtime_dependency(%q<activesupport>, [">= 0"])
+      s.add_runtime_dependency(%q<settingslogic>, [">= 0"])
       s.add_runtime_dependency(%q<activemodel>, [">= 0"])
       s.add_runtime_dependency(%q<json>, [">= 0"])
-      s.add_development_dependency(%q<bundler>, ["~> 1.1.5"])
-      s.add_development_dependency(%q<jeweler>, ["~> 1.6.4"])
+      s.add_development_dependency(%q<bundler>, [">= 0"])
+      s.add_development_dependency(%q<jeweler>, [">= 0"])
       s.add_development_dependency(%q<rcov>, [">= 0"])
-      s.add_development_dependency(%q<reek>, ["~> 1.2.8"])
+      s.add_development_dependency(%q<reek>, [">= 0"])
       s.add_development_dependency(%q<rest-client>, [">= 0"])
       s.add_development_dependency(%q<activesupport>, [">= 0"])
       s.add_development_dependency(%q<activemodel>, [">= 0"])
@@ -97,12 +106,13 @@ Gem::Specification.new do |s|
     else
       s.add_dependency(%q<rest-client>, [">= 0"])
       s.add_dependency(%q<activesupport>, [">= 0"])
+      s.add_dependency(%q<settingslogic>, [">= 0"])
       s.add_dependency(%q<activemodel>, [">= 0"])
       s.add_dependency(%q<json>, [">= 0"])
-      s.add_dependency(%q<bundler>, ["~> 1.1.5"])
-      s.add_dependency(%q<jeweler>, ["~> 1.6.4"])
+      s.add_dependency(%q<bundler>, [">= 0"])
+      s.add_dependency(%q<jeweler>, [">= 0"])
       s.add_dependency(%q<rcov>, [">= 0"])
-      s.add_dependency(%q<reek>, ["~> 1.2.8"])
+      s.add_dependency(%q<reek>, [">= 0"])
       s.add_dependency(%q<rest-client>, [">= 0"])
       s.add_dependency(%q<activesupport>, [">= 0"])
       s.add_dependency(%q<activemodel>, [">= 0"])
@@ -112,12 +122,13 @@ Gem::Specification.new do |s|
   else
     s.add_dependency(%q<rest-client>, [">= 0"])
     s.add_dependency(%q<activesupport>, [">= 0"])
+    s.add_dependency(%q<settingslogic>, [">= 0"])
     s.add_dependency(%q<activemodel>, [">= 0"])
     s.add_dependency(%q<json>, [">= 0"])
-    s.add_dependency(%q<bundler>, ["~> 1.1.5"])
-    s.add_dependency(%q<jeweler>, ["~> 1.6.4"])
+    s.add_dependency(%q<bundler>, [">= 0"])
+    s.add_dependency(%q<jeweler>, [">= 0"])
     s.add_dependency(%q<rcov>, [">= 0"])
-    s.add_dependency(%q<reek>, ["~> 1.2.8"])
+    s.add_dependency(%q<reek>, [">= 0"])
     s.add_dependency(%q<rest-client>, [">= 0"])
     s.add_dependency(%q<activesupport>, [">= 0"])
     s.add_dependency(%q<activemodel>, [">= 0"])

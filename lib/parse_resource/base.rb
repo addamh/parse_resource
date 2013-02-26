@@ -42,7 +42,7 @@ module ParseResource
     def initialize(new_attributes={}, new=true)
       self.class.fields(*new_attributes.keys)
 
-      attributes = new_attributes
+      self.attributes = new_attributes
       attributes.mark_as_clean! unless new
     end
 
@@ -106,7 +106,7 @@ module ParseResource
 
       @data_provider = nil
       fresh_object = self.class.find(id)
-      attributes = fresh_object.attributes
+      self.attributes = fresh_object.attributes
       attributes.mark_as_clean!
       self
     end
@@ -133,13 +133,13 @@ module ParseResource
       class_eval do
         unless respond_to? field
           define_method(field) do
-            attributes[key]
+            attributes[field]
           end
         end
 
         unless respond_to? "#{field}="
           define_method("#{field}=") do |value|
-            attributes[key] = value
+            attributes[field] = value
             value
           end
         end
@@ -323,7 +323,7 @@ module ParseResource
             if resp.code == 200 || resp.code == 201
               new_attributes = JSON.parse(resp)
               self.class.fields(*new_attributes.keys)
-              attributes = new_attributes
+              self.attributes = new_attributes
               attributes.mark_as_clean!
               return true
             else
@@ -344,7 +344,7 @@ module ParseResource
             if resp.code == 200 || resp.code == 201
               new_attributes = JSON.parse(resp)
               self.class.fields(*new_atttributes.keys)
-              attributes = new_attributes
+              self.attributes = new_attributes
               attributes.mark_as_clean!
               return true
             else
@@ -366,8 +366,8 @@ module ParseResource
     attr_reader :unsaved
 
     def initialize(*args)
-      mark_as_clean!
       super
+      mark_as_clean!
     end
 
     def []=(key, value)
@@ -386,13 +386,13 @@ module ParseResource
 
     private
 
-      def transform_for_write(value)
-        if value.is_a?(Date) || value.is_a?(Time) || value.is_a?(DateTime)
-          value = {"__type" => "Date", "iso" => value.iso8601}
+      def transform_for_write(attribute)
+        if attribute.is_a?(Date) || attribute.is_a?(Time) || attribute.is_a?(DateTime)
+          attribute = {"__type" => "Date", "iso" => attribute.iso8601}
         elsif attribute.respond_to?(:to_pointer)
-          value = value.to_pointer
+          attribute = attribute.to_pointer
         end
-        value
+        attribute
       end
 
       def transform_for_return(attribute)
