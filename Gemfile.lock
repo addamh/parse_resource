@@ -34,7 +34,6 @@ GEM
       sexp_processor (~> 4.0)
     ruby_parser (3.1.1)
       sexp_processor (~> 4.1)
-    settingslogic (2.0.9)
     sexp_processor (4.1.5)
     simplecov (0.7.1)
       multi_json (~> 1.0)
@@ -56,7 +55,6 @@ DEPENDENCIES
   json
   reek
   rest-client
-  settingslogic
   simplecov
   vcr
   webmock
