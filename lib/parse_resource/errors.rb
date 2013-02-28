@@ -26,7 +26,7 @@ module ParseResource
     def initialize(record)
       @record = record
       errors = @record.errors.full_messages.join(", ")
-      super(I18n.t("activerecord.errors.messages.record_invalid", :errors => errors))
+      super(:errors => errors)
     end
   end
 
