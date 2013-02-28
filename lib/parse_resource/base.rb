@@ -365,7 +365,7 @@ module ParseResource
           self.resource.post(attrs, opts) do |resp, req, res, &block|
             if resp.code == 200 || resp.code == 201
               new_attributes = JSON.parse(resp)
-              self.class.fields(*new_atttributes.keys)
+              self.class.fields(*new_attributes.keys)
               self.attributes = new_attributes
               attributes.mark_as_clean!
               return true
