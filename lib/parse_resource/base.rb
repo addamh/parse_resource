@@ -390,6 +390,7 @@ module ParseResource
     def initialize(*args)
       super
       mark_as_clean!
+      run_callbacks :initialize
     end
 
     def []=(key, value)
