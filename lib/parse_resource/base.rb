@@ -288,8 +288,15 @@ module ParseResource
       obj
     end
 
-    def self.create!(attributes = {})
-      create(attributes) || raise(RecordNotSaved)
+    def self.create!(attributes = nil, options = {}, &block)
+      if attributes.is_a?(Array)
+        attributes.collect { |attr| create!(attr, options, &block) }
+      else
+        object = new(attributes, options)
+        yield(object) if block_given?
+        object.save!
+        object
+      end
     end
 
     # TODO - Conditions
