@@ -22,6 +22,7 @@ module ParseResource
   #
   class Base
     include ActiveModel::Validations
+    include ActiveModel::Validations::Callbacks
     include ActiveModel::Conversion
     include ActiveModel::AttributeMethods
     include ParseResource::QueryMethods
