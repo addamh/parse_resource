@@ -319,6 +319,12 @@ module ParseResource
         options[:validate] == false || valid?
       end
 
+      def valid?(context = nil)
+        context ||= (new? ? :create : :update)
+        output = super(context)
+        errors.empty? && output
+      end
+
       def create_or_update
         run_callbacks(:save) do
           result = new? ? create : update
