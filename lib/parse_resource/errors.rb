@@ -11,6 +11,25 @@ module ParseResource
   class SubclassNotFound < ParseResourceError
   end
 
+  # = Parse Resource RecordInvalid
+  #
+  # Raised by <tt>save!</tt> and <tt>create!</tt> when the record is invalid.  Use the
+  # +record+ method to retrieve the record which did not validate.
+  #
+  #   begin
+  #     complex_operation_that_calls_save!_internally
+  #   rescue ParseResource::RecordInvalid => invalid
+  #     puts invalid.record.errors
+  #   end
+  class RecordInvalid < ParseResourceError
+    attr_reader :record
+    def initialize(record)
+      @record = record
+      errors = @record.errors.full_messages.join(", ")
+      super(I18n.t("activerecord.errors.messages.record_invalid", :errors => errors))
+    end
+  end
+
   # Raised when an object assigned to an association has an incorrect type.
   #
   #   class Ticket < ActiveRecord::Base

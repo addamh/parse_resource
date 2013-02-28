@@ -79,7 +79,11 @@ module ParseResource
     end
 
     def save!(options={})
-      save(options) || raise(RecordNotSaved)
+      if perform_save?(options)
+        create_or_update || raise(RecordNotSaved)
+      else
+        raise(RecordInvalid.new(self))
+      end
     end
 
     def update_attributes(new_attributes = {})
