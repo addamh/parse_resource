@@ -288,6 +288,10 @@ module ParseResource
       obj
     end
 
+    def self.create!(attributes = {})
+      create(attributes) || raise(RecordNotSaved)
+    end
+
     # TODO - Conditions
     def self.destroy_all(*)
       all.map(&:destroy)
