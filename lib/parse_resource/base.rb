@@ -30,7 +30,7 @@ module ParseResource
     extend ActiveModel::Naming
     extend ActiveModel::Callbacks
 
-    define_model_callbacks :save, :create, :update, :destroy
+    define_model_callbacks :initialize, :save, :create, :update, :destroy
 
     #
     # Instantiates a ParseResource::Base object
@@ -45,6 +45,7 @@ module ParseResource
 
       self.attributes = new_attributes
       attributes.mark_as_clean! unless new
+      run_callbacks :initialize
     end
 
     def to_pointer
