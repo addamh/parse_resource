@@ -45,7 +45,6 @@ module ParseResource
 
       self.attributes = new_attributes
       attributes.mark_as_clean! unless new
-      run_callbacks :initialize
     end
 
     def to_pointer
