@@ -45,6 +45,7 @@ module ParseResource
 
       self.attributes = new_attributes
       attributes.mark_as_clean! unless new
+      run_callbacks :initialize
     end
 
     def to_pointer
@@ -390,7 +391,6 @@ module ParseResource
     def initialize(*args)
       super
       mark_as_clean!
-      run_callbacks :initialize
     end
 
     def []=(key, value)
