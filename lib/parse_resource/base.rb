@@ -194,7 +194,7 @@ module ParseResource
       class_eval do
         define_method(association) do
           name = self.class.model_name[0].downcase + self.class.model_name[1..-1]
-          klass = association.to_s.singularize.titleize.constantize
+          klass = association.to_s.singularize.classify.constantize
           klass.where name.to_sym => self.to_pointer
         end
       end
